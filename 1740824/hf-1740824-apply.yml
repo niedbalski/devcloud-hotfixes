@@ -1,0 +1,74 @@
+# Apply the hotfix for 1740824
+---
+
+- hosts: compute_servers
+  become: yes
+  vars:
+    hotfix: "1740824"
+    packages:
+      - erp-nova_2016
+      - erp-nova-compute-node-services
+    services:
+      - erp-nova-compute
+  tasks:
+    - copy:
+        src:  "{{lookup('fileglob', '{{hotfixes_path}}/{{hotfix}}/packages/{{item}}*.deb')}}"
+        dest: "/tmp/{{hotfix}}/"
+      with_items:
+        - "{{packages}}"
+      tags: compute
+    - find:
+        paths: "/tmp/{{hotfix}}/"
+        patterns: "*.deb"
+      register: debs
+      tags: compute
+    - apt:
+        deb: "{{item.path}}"
+      with_items:
+        - "{{debs.files}}"
+      tags: compute
+    - service:
+        name: "{{item}}"
+        state: restarted
+        enabled: yes
+      with_items:
+        - "{{services}}"
+      tags: compute
+
+- hosts: controller_servers
+  become: yes
+  vars:
+    hotfix: "1740824"
+    packages:
+      - erp-nova_2016
+      - erp-nova-services
+    services:
+      - erp-nova-api
+      - erp-nova-cert
+      - erp-nova-conductor
+      - erp-nova-consoleauth
+      - erp-nova-scheduler
+  tasks:
+    - copy:
+        src:  "{{lookup('fileglob', '{{hotfixes_path}}/{{hotfix}}/packages/{{item}}*.deb')}}"
+        dest: "/tmp/{{hotfix}}/"
+      with_items:
+        - "{{packages}}"
+      tags: controller
+    - find:
+        paths: "/tmp/{{hotfix}}/"
+        patterns: "*.deb"
+      register: debs
+      tags: controller
+    - apt:
+        deb: "{{item.path}}"
+      with_items:
+        - "{{debs.files}}"
+      tags: controller
+    - service:
+        name: "{{item}}"
+        state: restarted
+        enabled: yes
+      with_items:
+        - "{{services}}"
+      tags: controller

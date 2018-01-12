@@ -1,0 +1,52 @@
+# Verify the hotfix for 1740824
+---
+
+- hosts: compute_servers
+  become: yes
+  vars:
+    hotfix: "1740824"
+    packages:
+      - erp-nova
+      - erp-nova-compute-node-services
+    services:
+      - erp-nova-compute
+  tasks:
+    - service:
+        name: "{{item}}"
+        state: started
+      with_items:
+        - "{{services}}"
+      tags: compute
+    - shell: "dpkg -l | grep {{item}} | awk '{print $3}'"
+      register: dpkg
+      failed_when: "'{{hotfix|string}}' not in dpkg.stdout"
+      with_items:
+        - "{{packages}}"
+      tags: compute
+
+- hosts: controller_servers
+  become: yes
+  vars:
+    hotfix: "1740824"
+    packages:
+      - erp-nova
+      - erp-nova-services
+    services:
+      - erp-nova-api
+      - erp-nova-cert
+      - erp-nova-conductor
+      - erp-nova-consoleauth
+      - erp-nova-scheduler
+  tasks:
+    - service:
+        name: "{{item}}"
+        state: started
+      with_items:
+        - "{{services}}"
+      tags: controller
+    - shell: "dpkg -l | grep {{item}} | awk '{print $3}'"
+      register: dpkg
+      failed_when: "'{{hotfix|string}}' not in dpkg.stdout"
+      with_items:
+        - "{{packages}}"
+      tags: controller
