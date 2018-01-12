@@ -1,0 +1,182 @@
+diff -Nru erp-nova-2016.12/debian/changelog erp-nova-2016.12/debian/changelog
+--- erp-nova-2016.12/debian/changelog	2017-02-09 19:23:58.000000000 +0000
++++ erp-nova-2016.12/debian/changelog	2018-01-11 16:19:32.000000000 +0000
+@@ -1,3 +1,10 @@
++erp-nova (2016.12-build29.10+hf1740824) stable; urgency=medium
++
++  * d/p/0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch: Fix
++    required by the OpenStack infra. Check DC-293 for context.
++
++ -- Jorge Niedbalski <jorge.niedbalski@linaro.org>  Thu, 11 Jan 2018 15:57:24 +0000
++
+ erp-nova (2016.12-build29.9) stable; urgency=medium
+ 
+   * rebuild with virtualenv build 29
+diff -Nru erp-nova-2016.12/debian/patches/0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch erp-nova-2016.12/debian/patches/0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch
+--- erp-nova-2016.12/debian/patches/0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch	1970-01-01 00:00:00.000000000 +0000
++++ erp-nova-2016.12/debian/patches/0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch	2018-01-11 15:54:59.000000000 +0000
+@@ -0,0 +1,158 @@
++From 8bc7b950b7c0a3c80cdd120fe4df97c14848c344 Mon Sep 17 00:00:00 2001
++From: Marcin Juszkiewicz <marcin.juszkiewicz@linaro.org>
++Date: Wed, 3 Jan 2018 17:44:27 +0100
++Subject: [PATCH] libvirt: use 'host-passthrough' as default on AArch64
++
++Nova is assuming 'host-model' for KVM/QEMU setup.
++
++On AArch64 it results in "libvirtError: unsupported configuration: CPU
++mode 'host-model' for aarch64 kvm domain on aarch64 host is not
++supported by hypervisor" message.
++
++AArch64 lacks 'host-model' support because neither libvirt nor QEMU
++are able to tell what the host CPU model exactly is. And there is no
++CPU description code for ARM(64) at this point.
++
++So instead we fallback to 'host-passthrough' to get VM instances
++running. This will completely break live migration, *unless* all the
++Compute nodes (running libvirtd) have *identical* CPUs.
++
++Small summary: https://marcin.juszkiewicz.com.pl/2018/01/04/today-i-was-fighting-with-nova-no-idea-who-won/
++
++Closes-bug: #1741230
++
++Co-authored-by: Kevin Zhao <Kevin.Zhao@arm.com>
++Co-authored-by: Marcin Juszkiewicz <marcin.juszkiewicz@linaro.org>
++
++Change-Id: Iafb5f1790d68489db73b9f0549333108c6426a00
++---
++ create mode 100644 releasenotes/notes/aarch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml
++
++From 8bc7b950b7c0a3c80cdd120fe4df97c14848c344 Mon Sep 17 00:00:00 2001
++From: Marcin Juszkiewicz <marcin.juszkiewicz@linaro.org>
++Date: Wed, 3 Jan 2018 17:44:27 +0100
++Subject: [PATCH] libvirt: use 'host-passthrough' as default on AArch64
++
++Nova is assuming 'host-model' for KVM/QEMU setup.
++
++On AArch64 it results in "libvirtError: unsupported configuration: CPU
++mode 'host-model' for aarch64 kvm domain on aarch64 host is not
++supported by hypervisor" message.
++
++AArch64 lacks 'host-model' support because neither libvirt nor QEMU
++are able to tell what the host CPU model exactly is. And there is no
++CPU description code for ARM(64) at this point.
++
++So instead we fallback to 'host-passthrough' to get VM instances
++running. This will completely break live migration, *unless* all the
++Compute nodes (running libvirtd) have *identical* CPUs.
++
++Small summary: https://marcin.juszkiewicz.com.pl/2018/01/04/today-i-was-fighting-with-nova-no-idea-who-won/
++
++Closes-bug: #1741230
++
++Co-authored-by: Kevin Zhao <Kevin.Zhao@arm.com>
++Co-authored-by: Marcin Juszkiewicz <marcin.juszkiewicz@linaro.org>
++
++Change-Id: Iafb5f1790d68489db73b9f0549333108c6426a00
++---
++ src/nova/tests/unit/virt/libvirt/test_driver.py        | 32 ++++++++++++++++++++++
++ src/nova/virt/libvirt/driver.py                        | 18 +++++++++++-
++ ...rch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml | 13 +++++++++
++ 3 files changed, 62 insertions(+), 1 deletion(-)
++ create mode 100644 releasenotes/notes/aarch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml
++
++diff --git a/src/nova/tests/unit/virt/libvirt/test_driver.py b/src/nova/tests/unit/virt/libvirt/test_driver.py
++index d2998bf..298b182 100755
++--- a/src/nova/tests/unit/virt/libvirt/test_driver.py
+++++ b/src/nova/tests/unit/virt/libvirt/test_driver.py
++@@ -5826,6 +5826,38 @@ class LibvirtConnTestCase(test.NoDBTestCase,
++         self.assertEqual(conf.cpu.cores, 1)
++         self.assertEqual(conf.cpu.threads, 1)
++ 
+++    def test_get_guest_cpu_config_host_passthrough_aarch64(self):
+++        expected = {
+++            fields.Architecture.X86_64: "host-model",
+++            fields.Architecture.I686: "host-model",
+++            fields.Architecture.PPC: "host-model",
+++            fields.Architecture.PPC64: "host-model",
+++            fields.Architecture.ARMV7: "host-model",
+++            fields.Architecture.AARCH64: "host-passthrough",
+++        }
+++        for guestarch, expect_mode in expected.items():
+++            caps = vconfig.LibvirtConfigCaps()
+++            caps.host = vconfig.LibvirtConfigCapsHost()
+++            caps.host.cpu = vconfig.LibvirtConfigCPU()
+++            caps.host.cpu.arch = guestarch
+++            with mock.patch.object(host.Host, "get_capabilities",
+++                                   return_value=caps):
+++                drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+++                if caps.host.cpu.arch == fields.Architecture.AARCH64:
+++                    drvr._has_uefi_support = mock.Mock(return_value=True)
+++                instance_ref = objects.Instance(**self.test_instance)
+++                image_meta = objects.ImageMeta.from_dict(self.test_image_meta)
+++
+++                disk_info = blockinfo.get_disk_info(CONF.libvirt.virt_type,
+++                                                    instance_ref,
+++                                                    image_meta)
+++                conf = drvr._get_guest_config(instance_ref,
+++                                              _fake_network_info(self, 1),
+++                                              image_meta, disk_info)
+++                self.assertIsInstance(conf.cpu,
+++                                      vconfig.LibvirtConfigGuestCPU)
+++                self.assertEqual(conf.cpu.mode, expect_mode)
+++
++     def test_get_guest_cpu_config_host_model(self):
++         drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
++         instance_ref = objects.Instance(**self.test_instance)
++diff --git a/src/nova/virt/libvirt/driver.py b/src/nova/virt/libvirt/driver.py
++index ce24cd2..4209af1 100644
++--- a/src/nova/virt/libvirt/driver.py
+++++ b/src/nova/virt/libvirt/driver.py
++@@ -3551,7 +3551,23 @@ class LibvirtDriver(driver.ComputeDriver):
++         if (CONF.libvirt.virt_type == "kvm" or
++             CONF.libvirt.virt_type == "qemu"):
++             if mode is None:
++-                mode = "host-model"
+++                caps = self._host.get_capabilities()
+++                # AArch64 lacks 'host-model' support because neither libvirt
+++                # nor QEMU are able to tell what the host CPU model exactly is.
+++                # And there is no CPU description code for ARM(64) at this
+++                # point.
+++
+++                # Also worth noting: 'host-passthrough' mode will completely
+++                # break live migration, *unless* all the Compute nodes (running
+++                # libvirtd) have *identical* CPUs.
+++                if caps.host.cpu.arch == fields.Architecture.AARCH64:
+++                    mode = "host-passthrough"
+++                    LOG.info('CPU mode "host-passthrough" was chosen. Live '
+++                             'migration can break unless all compute nodes '
+++                             'have identical cpus. AArch64 does not support '
+++                             'other modes.')
+++                else:
+++                    mode = "host-model"
++             if mode == "none":
++                 return vconfig.LibvirtConfigGuestCPU()
++         else:
++diff --git a/releasenotes/notes/aarch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml b/releasenotes/notes/aarch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml
++new file mode 100644
++index 0000000..6458fbe
++--- /dev/null
+++++ b/releasenotes/notes/aarch64-set-proper-cpu-mode-8455bad7d69dc6fd.yaml
++@@ -0,0 +1,13 @@
+++---
+++upgrade:
+++  - |
+++    On AArch64 architecture ``cpu_mode`` for libvirt is set to ``host-passthrough``
+++    by default.
+++
+++    AArch64 currently lacks ``host-model`` support because neither libvirt nor
+++    QEMU are able to tell what the host CPU model exactly is and there is no
+++    CPU description code for ARM(64) at this point.
+++
+++    .. warning:: ``host-passthrough`` mode will completely break live
+++       migration, *unless* all the Compute nodes (running libvirtd) have
+++       *identical* CPUs.
++-- 
++2.1.4
++
+diff -Nru erp-nova-2016.12/debian/patches/series erp-nova-2016.12/debian/patches/series
+--- erp-nova-2016.12/debian/patches/series	2017-01-20 15:09:46.000000000 +0000
++++ erp-nova-2016.12/debian/patches/series	2018-01-11 15:54:23.000000000 +0000
+@@ -1 +1,2 @@
++0001-libvirt-use-host-passthrough-as-default-on-AArch64.patch
+ linaro
