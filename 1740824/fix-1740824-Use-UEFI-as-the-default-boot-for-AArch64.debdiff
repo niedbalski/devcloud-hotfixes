@@ -1,0 +1,66 @@
+diff -Nru erp-nova-2016.12/debian/changelog erp-nova-2016.12/debian/changelog
+--- erp-nova-2016.12/debian/changelog	2017-02-09 19:23:58.000000000 +0000
++++ erp-nova-2016.12/debian/changelog	2018-01-23 20:25:47.000000000 +0000
+@@ -1,3 +1,10 @@
++erp-nova (2016.12-build29.11+hf1740824) stable; urgency=medium
++
++  * d/p/./debian/patches//0001-Use-UEFI-as-the-default-boot-for-AArch64.patch: Fix
++    required by the OpenStack infra. Check DC-293 for context. Fixes LP:#1740824.
++
++ -- Jorge Niedbalski <jorge.niedbalski@linaro.org>  Thu, 11 Jan 2018 15:57:24 +0000
++
+ erp-nova (2016.12-build29.9) stable; urgency=medium
+ 
+   * rebuild with virtualenv build 29
+diff -Nru erp-nova-2016.12/debian/patches/0001-Use-UEFI-as-the-default-boot-for-AArch64.patch erp-nova-2016.12/debian/patches/0001-Use-UEFI-as-the-default-boot-for-AArch64.patch
+--- erp-nova-2016.12/debian/patches/0001-Use-UEFI-as-the-default-boot-for-AArch64.patch	1970-01-01 00:00:00.000000000 +0000
++++ erp-nova-2016.12/debian/patches/0001-Use-UEFI-as-the-default-boot-for-AArch64.patch	2018-01-23 20:10:27.000000000 +0000
+@@ -0,0 +1,42 @@
++From e2fdda2f6b5cf38d942618e3b5fc3e33564e407f Mon Sep 17 00:00:00 2001
++From: Kevin Zhao <kevin.zhao@arm.com>
++Date: Wed, 2 Aug 2017 17:50:28 +0800
++Subject: [PATCH] Use UEFI as the default boot for AArch64
++
++There are two ways of booting VM on AArch64 architecture:
++
++1. UEFI
++2. kernel+initrd
++
++No one sane goes for 2nd option so hw_firmware_type=uefi has to be set
++for every image. Otherwise they simply hang. So let's set is as default
++if no other value for hw_firmware_type is set.
++
++If someone will implement own way then they can set hw_firmware_type to
++own value and add support to Nova.
++
++Closes-Bug: #1740824
++
++Co-authored-by: Kevin Zhao <Kevin.Zhao@arm.com>
++Change-Id: I70ad5ecb420b7d469854e8743e38ba27fd204747
++(cherry picked from commit 6f54f5c1e37a42b395ca793f869b73aa902602ed)
++---
++ lib/python2.7/site-packages/nova/virt/libvirt/driver.py                 | 3 +++
++
++diff --git a/lib/python2.7/site-packages/nova/virt/libvirt/driver.py b/lib/python2.7/site-packages/nova/virt/libvirt/driver.py
++index c288965..43c0e2f 100644
++--- a/lib/python2.7/site-packages/nova/virt/libvirt/driver.py
+++++ b/lib/python2.7/site-packages/nova/virt/libvirt/driver.py
++@@ -4540,6 +4540,9 @@ class LibvirtDriver(driver.ComputeDriver):
++                 guest.sysinfo = self._get_guest_config_sysinfo(instance)
++                 guest.os_smbios = vconfig.LibvirtConfigGuestSMBIOS()
++             hw_firmware_type = image_meta.properties.get('hw_firmware_type')
+++            if caps.host.cpu.arch == fields.Architecture.AARCH64:
+++                if not hw_firmware_type:
+++                    hw_firmware_type = fields.FirmwareType.UEFI
++             if hw_firmware_type == fields.FirmwareType.UEFI:
++                 if self._has_uefi_support():
++                     global uefi_logged
++-- 
++2.1.4
++
+diff -Nru erp-nova-2016.12/debian/patches/series erp-nova-2016.12/debian/patches/series
+--- erp-nova-2016.12/debian/patches/series	2017-01-20 15:09:46.000000000 +0000
++++ erp-nova-2016.12/debian/patches/series	2018-01-12 01:06:09.000000000 +0000
+@@ -1 +1,2 @@
++0001-Use-UEFI-as-the-default-boot-for-AArch64.patch
+ linaro
